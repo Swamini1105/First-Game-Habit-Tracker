@@ -1,0 +1,247 @@
+import customtkinter as ctk
+from tkinter import messagebox
+import matplotlib.pyplot as plt
+import json
+import os
+import datetime
+import openpyxl
+
+# Initialize CustomTkinter Appearance
+ctk.set_appearance_mode("System")
+ctk.set_default_color_theme("green")
+
+# ---------------------- Global Setup ---------------------
+data_file = "habit_data.json"
+data = {}
+current_user = None
+
+if os.path.exists(data_file):
+    with open(data_file, "r") as f:
+        data = json.load(f)
+
+# ---------------------- Main Window ----------------------
+app = ctk.CTk()
+app.title("Swamini Habit Tracker")
+app.geometry("600x500")
+
+# Coral orange background frame
+background_frame = ctk.CTkFrame(app, fg_color="#FF7F50", corner_radius=0)
+background_frame.place(relwidth=1, relheight=1)
+
+# ---------------------- Utility Functions ----------------------
+def save_data():
+    with open(data_file, "w") as f:
+        json.dump(data, f, indent=4)
+
+def update_user_list():
+    user_menu.configure(values=list(data.keys()))
+
+def clear_widgets():
+    for widget in background_frame.winfo_children():
+        widget.destroy()
+
+# ---------------------- Authentication ----------------------
+def login():
+    global current_user
+    name = username_entry.get().strip()
+    if name:
+        current_user = name
+        if name not in data:
+            data[name] = {"habits": [], "logs": {}, "moods": {}}
+        save_data()
+        update_user_list()
+        messagebox.showinfo("Welcome", f"Hello, {name}! You're logged in.")
+        show_main_menu()
+    else:
+        messagebox.showerror("Error", "Please enter a username.")
+
+def switch_user(name):
+    global current_user
+    current_user = name
+    username_entry.delete(0, 'end')
+    username_entry.insert(0, name)
+    show_main_menu()
+
+# ---------------------- Screens ----------------------
+def start_screen():
+    global username_entry, user_menu
+    clear_widgets()
+    ctk.CTkLabel(background_frame, text="Swamini Habit Tracker", font=("Arial", 24)).pack(pady=20)
+    ctk.CTkLabel(background_frame, text="Username:").pack()
+    username_entry = ctk.CTkEntry(background_frame, width=200)
+    username_entry.pack(pady=5)
+    ctk.CTkButton(background_frame, text="Login / Register", command=login).pack(pady=5)
+    ctk.CTkLabel(background_frame, text="Switch User:").pack(pady=5)
+    user_menu = ctk.CTkOptionMenu(background_frame, values=list(data.keys()), command=switch_user)
+    user_menu.pack()
+
+def show_main_menu():
+    clear_widgets()
+    ctk.CTkLabel(background_frame, text=f"Welcome {current_user}", font=("Arial", 20)).pack(pady=10)
+    ctk.CTkButton(background_frame, text="Manage Habits", command=habit_manager).pack(pady=5)
+    ctk.CTkButton(background_frame, text="Log Progress", command=log_progress).pack(pady=5)
+    ctk.CTkButton(background_frame, text="Mood Tracker", command=mood_tracker).pack(pady=5)
+    ctk.CTkButton(background_frame, text="View Calendar Logs", command=view_calendar_logs).pack(pady=5)
+    ctk.CTkButton(background_frame, text="Show Pie Chart", command=show_pie_chart).pack(pady=5)
+    ctk.CTkButton(background_frame, text="Show Line Graph", command=show_line_graph).pack(pady=5)
+    ctk.CTkButton(background_frame, text="Export to Excel", command=export_to_excel).pack(pady=5)
+    ctk.CTkButton(background_frame, text="Logout", command=start_screen).pack(pady=20)
+
+# ---------------------- Habit Manager ----------------------
+def habit_manager():
+    clear_widgets()
+    ctk.CTkLabel(background_frame, text="Habit Manager", font=("Arial", 20)).pack(pady=10)
+
+    habit_entry = ctk.CTkEntry(background_frame, placeholder_text="Enter new habit")
+    habit_entry.pack(pady=5)
+
+    def add_habit():
+        habit = habit_entry.get().strip()
+        if habit:
+            if habit not in data[current_user]["habits"]:
+                data[current_user]["habits"].append(habit)
+                save_data()
+                messagebox.showinfo("Success", f"Added: {habit}")
+                habit_entry.delete(0, 'end')
+                habit_list.configure(values=data[current_user]["habits"])
+            else:
+                messagebox.showerror("Error", "Habit already exists!")
+        else:
+            messagebox.showerror("Error", "Please enter a habit.")
+
+    def remove_habit():
+        selected = habit_list.get()
+        if selected in data[current_user]["habits"]:
+            data[current_user]["habits"].remove(selected)
+            save_data()
+            habit_list.configure(values=data[current_user]["habits"])
+            messagebox.showinfo("Removed", f"Deleted: {selected}")
+        else:
+            messagebox.showerror("Error", "Select a habit to remove.")
+
+    ctk.CTkButton(background_frame, text="Add Habit", command=add_habit).pack(pady=5)
+    habit_list = ctk.CTkOptionMenu(background_frame, values=data[current_user]["habits"])
+    habit_list.pack(pady=5)
+    ctk.CTkButton(background_frame, text="Remove Selected", command=remove_habit).pack(pady=5)
+    ctk.CTkButton(background_frame, text="Back", command=show_main_menu).pack(pady=10)
+
+# ---------------------- Log Progress ----------------------
+def log_progress():
+    clear_widgets()
+    ctk.CTkLabel(background_frame, text="Log Today's Habits", font=("Arial", 20)).pack(pady=10)
+    today = str(datetime.date.today())
+    checkboxes = []
+
+    def submit():
+        completed = [habit for i, habit in enumerate(data[current_user]["habits"]) if checkboxes[i].get()]
+        data[current_user]["logs"][today] = completed
+        save_data()
+        messagebox.showinfo("Logged", "Today's habits logged!")
+        show_main_menu()
+
+    for habit in data[current_user]["habits"]:
+        var = ctk.BooleanVar()
+        cb = ctk.CTkCheckBox(background_frame, text=habit, variable=var)
+        cb.pack()
+        checkboxes.append(var)
+
+    ctk.CTkButton(background_frame, text="Submit", command=submit).pack(pady=10)
+    ctk.CTkButton(background_frame, text="Back", command=show_main_menu).pack()
+
+# ---------------------- Mood Tracker ----------------------
+def mood_tracker():
+    clear_widgets()
+    ctk.CTkLabel(background_frame, text="How are you feeling today?", font=("Arial", 20)).pack(pady=10)
+    moods = ["😊 Happy", "😢 Sad", "😐 Neutral", "😄 Excited", "😟 Stressed", "😌 Calm"]
+    mood_menu = ctk.CTkOptionMenu(background_frame, values=moods)
+    mood_menu.pack(pady=5)
+
+    def log_mood():
+        mood = mood_menu.get()
+        today = str(datetime.date.today())
+        data[current_user]["moods"][today] = mood
+        save_data()
+        messagebox.showinfo("Mood Logged", f"Your mood was: {mood}")
+        show_main_menu()
+
+    ctk.CTkButton(background_frame, text="Submit Mood", command=log_mood).pack(pady=5)
+    ctk.CTkButton(background_frame, text="Back", command=show_main_menu).pack(pady=10)
+
+# ---------------------- View Calendar Logs ----------------------
+def view_calendar_logs():
+    clear_widgets()
+    ctk.CTkLabel(background_frame, text="Calendar Logs", font=("Arial", 20)).pack(pady=10)
+    calendar_text = ""
+    logs = data[current_user]["logs"]
+    for day in sorted(logs.keys(), reverse=True):
+        habits_done = ", ".join(logs[day])
+        calendar_text += f"{day}: {habits_done}\n"
+
+    text_box = ctk.CTkTextbox(background_frame, width=500, height=200)
+    text_box.insert("0.0", calendar_text if calendar_text else "No logs available.")
+    text_box.configure(state="disabled")
+    text_box.pack(pady=10)
+    ctk.CTkButton(background_frame, text="Back", command=show_main_menu).pack(pady=10)
+
+# ---------------------- Pie Chart ----------------------
+def show_pie_chart():
+    if not current_user or "logs" not in data[current_user]:
+        messagebox.showinfo("No Data", "No progress logged yet.")
+        return
+    logs = data[current_user]["logs"]
+    total = {}
+    for day in logs:
+        for habit in logs[day]:
+            total[habit] = total.get(habit, 0) + 1
+    if not total:
+        messagebox.showinfo("No Data", "No progress logged yet.")
+        return
+    labels = list(total.keys())
+    sizes = list(total.values())
+    plt.figure(figsize=(6, 6))
+    plt.pie(sizes, labels=labels, autopct="%1.1f%%", startangle=140)
+    plt.title(f"Habit Completion for {current_user}")
+    plt.show()
+
+# ---------------------- Line Graph ----------------------
+def show_line_graph():
+    if not current_user or "logs" not in data[current_user]:
+        messagebox.showinfo("No Data", "No progress logged yet.")
+        return
+    logs = data[current_user]["logs"]
+    habit_trends = {}
+    dates = sorted(logs.keys())
+    for habit in data[current_user]["habits"]:
+        habit_trends[habit] = []
+        for date in dates:
+            habit_trends[habit].append(1 if habit in logs.get(date, []) else 0)
+
+    plt.figure(figsize=(8, 5))
+    for habit, trend in habit_trends.items():
+        plt.plot(dates, trend, marker='o', label=habit)
+    plt.xticks(rotation=45)
+    plt.title(f"Habit Trends for {current_user}")
+    plt.xlabel("Date")
+    plt.ylabel("Completed (1=Yes, 0=No)")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+# ---------------------- Export to Excel ----------------------
+def export_to_excel():
+    if not current_user:
+        messagebox.showerror("Error", "No user logged in.")
+        return
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Habit Logs"
+    ws.append(["Date", "Completed Habits"])
+    for day, habits in sorted(data[current_user]["logs"].items()):
+        ws.append([day, ", ".join(habits)])
+    filename = f"{current_user}_habit_logs.xlsx"
+    wb.save(filename)
+    messagebox.showinfo("Exported", f"Logs exported to {filename}")
+
+# ---------------------- Start App ----------------------
+start_screen()
+app.mainloop()
